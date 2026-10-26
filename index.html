@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原视频对比 · 最多三路同步</title>
+<style>
+:root{color-scheme:dark;font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif;background:#111214;color:#e9eaed}
+*{box-sizing:border-box}body{margin:0}main{max-width:1800px;margin:auto;padding:20px 26px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+h1{font-size:20px;font-weight:600;margin:0 0 4px}p{margin:0;color:#a7abb3}.tools,.row{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+button,select{font:inherit;color:inherit;background:#24262b;border:1px solid #454952;border-radius:6px;padding:7px 11px;max-width:100%}
+button{cursor:pointer}button:disabled{opacity:.4;cursor:default}button[aria-pressed="true"],#play,#add{background:#f0f1f4;color:#141518;border-color:#f0f1f4}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #83b9ff;outline-offset:3px}
+#workspace{position:relative}.compare{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 auto;max-width:100%;min-width:0}
+.pane{min-width:0;margin:0;position:relative}.image{position:relative;aspect-ratio:var(--aspect,1448/3840);overflow:hidden;background:#000}
+video{display:block;width:100%;height:100%;object-fit:contain}.compare.zoomed video{transform:scale(var(--scale,1));transform-origin:var(--pan-x,50%) var(--pan-y,50%)}.compare.zoomed .image{cursor:crosshair}
+figcaption{padding:8px 0;min-height:84px;text-align:center}.filename{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:500;min-width:0}.details{font-size:12px;color:#a7abb3;font-variant-numeric:tabular-nums}
+.slot-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:6px}.slot-actions button{padding:3px 8px;font-size:12px}
+.empty{width:100%;height:100%;position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#181a1e;color:#c9ccd2;border:1px dashed #525660;border-radius:0;padding:16px;white-space:normal;text-align:center}
+.empty strong{font-size:26px;font-weight:400}.empty small{font-size:12px;color:#a7abb3}.video-error{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;text-align:center;background:#17191de8;color:#ffb4b4}
+.slot-id{position:absolute;left:8px;top:8px;background:#111b;padding:2px 7px;border-radius:4px;pointer-events:none}
+.controls{max-width:1200px;margin:12px auto 0}.timeline{display:flex;align-items:center;gap:12px;margin-bottom:10px}input[type=range]{width:100%;min-width:30px;accent-color:#e2e5ec}output{font-variant-numeric:tabular-nums;white-space:nowrap}.spacer{flex:1}
+.wipe-controls{max-width:700px;margin:10px auto}.wipe-row{display:flex;align-items:center;gap:12px;margin:5px 0}.wipe-row label{white-space:nowrap}
+#wipeLegend{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 20px;margin-bottom:8px;font-size:12px}#wipeLegend span{max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.compare.wipe{display:block}.compare.wipe .pane{position:absolute;inset:0}.compare.wipe .pane.wipe-base{position:relative}.compare.wipe figcaption{display:none}.compare.wipe .pane:not(.wipe-active){display:none}.compare.wipe .slot-id{display:none}
+.divider{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none;z-index:5}.compare:not(.wipe) .divider{display:none}
+#message{min-height:21px;margin-top:10px;font-size:12px;color:#a7abb3}#message.error{color:#ffabab}
+.source{font-size:12px;overflow-wrap:anywhere;margin-top:10px;color:#a7abb3}.source summary{cursor:pointer}.source div{margin-top:6px;color:#b8bbc3}.source p{margin-top:6px}
+#audio{max-width:min(300px,48vw)}[hidden]{display:none!important}
+.fullscreen-tools{display:none}
+body.picture-fullscreen-open{overflow:hidden}
+#workspace.picture-fullscreen{position:fixed;inset:0;z-index:1000;width:100vw;height:100dvh;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden;margin:0;padding:0}
+#workspace.picture-fullscreen #wipeLegend,#workspace.picture-fullscreen figcaption,#workspace.picture-fullscreen .empty-slot{display:none!important}
+#workspace.picture-fullscreen .compare{flex:none;max-width:none;grid-template-columns:repeat(var(--fullscreen-count,3),minmax(0,1fr));gap:0;margin:0}
+#workspace.picture-fullscreen .fullscreen-tools{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);width:calc(100% - 32px);max-width:1200px;z-index:30;display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:8px;background:#17191de8;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .15s,visibility .15s}
+#workspace.picture-fullscreen.controls-visible .fullscreen-tools{opacity:1;visibility:visible;pointer-events:auto}
+.fullscreen-timeline{display:flex;align-items:center;gap:12px;width:100%;min-width:0}.fullscreen-timeline input{flex:1;min-width:40px}.fullscreen-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;width:100%}#fullscreenAudio{max-width:min(280px,50vw)}
+@media(max-width:640px){.fullscreen-timeline{flex-wrap:wrap;gap:2px}.fullscreen-timeline input{flex-basis:100%}.fullscreen-timeline output{margin-left:auto}#workspace.picture-fullscreen .fullscreen-tools{width:calc(100% - 16px);bottom:8px;padding:10px}.fullscreen-actions{gap:6px}}
+#workspace.picture-fullscreen:not(.controls-visible){cursor:none}
+#workspace.picture-fullscreen:not(.controls-visible) video{cursor:none}
+.drag-hint{position:absolute;inset:0;background:#171c26ed;border:2px dashed #90baff;display:flex;align-items:center;justify-content:center;z-index:20;font-size:18px;pointer-events:none}
+@media(max-width:640px){main{padding:12px}h1{font-size:18px}header{gap:8px;margin-bottom:12px}.tools{gap:6px}button,select{padding:7px 8px}.compare{gap:8px}.details{font-size:11px}.slot-actions{gap:4px}.slot-actions button{padding:4px 6px}.empty{padding:8px;gap:6px}.empty small{display:none}.empty strong{font-size:22px}.spacer{display:none}.timeline{flex-wrap:wrap;gap:2px}.timeline input{flex-basis:100%}.timeline output{margin-left:auto}.source{margin-top:8px}}
+</style>
+</head>
+<body>
+<main id="app">
+  <header id="header">
+    <div><h1>原视频同步对比</h1><p id="summary">最多三个视频 · 原速播放 · 原文件不变</p></div>
+    <div class="tools" aria-label="视频和对比方式">
+      <button id="add" type="button">添加视频</button>
+      <input id="files" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.mkv,.avi" multiple hidden aria-label="选择本地视频">
+      <button id="side" type="button" aria-pressed="true">并排对比</button>
+      <button id="wipe" type="button" aria-pressed="false">滑动分界</button>
+      <label for="zoom">画面</label><select id="zoom"><option value="fit">完整画面</option><option value="2">放大 2×</option><option value="4">放大 4×</option><option value="native">原始像素</option></select>
+      <button id="fullscreen" type="button">全屏</button>
+    </div>
+  </header>
+  <section id="workspace" tabindex="-1" aria-label="视频对比区">
+    <div id="wipeLegend" hidden></div>
+    <div class="compare" id="compare" aria-label="最多三个视频并排同步对比"></div>
+    <div class="drag-hint" id="dropHint" hidden>松开以添加视频 · 最多三个</div>
+    <div class="fullscreen-tools" id="fullscreenTools" aria-label="画面全屏控制">
+      <div class="fullscreen-timeline"><input id="fullscreenSeek" type="range" min="0" max="30" step="0.001" value="0" disabled aria-label="全屏共同时间位置"><output id="fullscreenTime">00:00.000 / 00:00.000</output></div>
+      <div class="fullscreen-actions">
+        <button id="fullscreenPlay" type="button" disabled>同步播放</button>
+        <button id="fullscreenBack" type="button" disabled>− 1/60 秒</button><button id="fullscreenForward" type="button" disabled>+ 1/60 秒</button>
+        <button id="fullscreenRestart" type="button" disabled>回到开头</button>
+        <label class="row"><input id="fullscreenLoop" type="checkbox" checked>循环</label>
+        <span class="spacer"></span><label for="fullscreenAudio">声音</label><select id="fullscreenAudio"><option value="none">静音</option></select>
+        <button id="exitFullscreen" type="button">退出全屏 · Esc</button>
+      </div>
+    </div>
+  </section>
+  <div class="wipe-controls" id="wipeControls" hidden>
+    <div class="wipe-row"><label for="split">分界 1</label><input id="split" type="range" min="0" max="100" value="50" aria-label="第一个滑动分界"><output id="splitValue">50%</output></div>
+    <div class="wipe-row" id="splitTwoRow" hidden><label for="splitTwo">分界 2</label><input id="splitTwo" type="range" min="0" max="100" value="67" aria-label="第二个滑动分界"><output id="splitTwoValue">67%</output></div>
+  </div>
+  <section class="controls" id="controls" aria-label="同步播放控制">
+    <div class="timeline"><input id="seek" type="range" min="0" max="30" step="0.001" value="0" disabled aria-label="共同时间位置"><output id="time">00:00.000 / 00:00.000</output></div>
+    <div class="row">
+      <button id="play" type="button" disabled>同步播放</button>
+      <button id="back" type="button" disabled>− 1/60 秒</button><button id="forward" type="button" disabled>+ 1/60 秒</button>
+      <button id="restart" type="button" disabled>回到开头</button>
+      <label class="row"><input id="loop" type="checkbox" checked>循环</label>
+      <span class="spacer"></span><label for="audio">声音</label><select id="audio"><option value="none">静音</option></select>
+    </div>
+    <p id="message" role="status" aria-live="polite">正在读取原视频…</p>
+    <details class="source"><summary>文件与播放说明</summary><div id="sourceList"></div><p>使用“添加视频”、空位或拖入文件添加，最多同时比较三个视频。每个位置可以替换或移除；声音可选择任意一路。新选文件只在本机浏览器读取，不上传，刷新后可重新添加。</p><p>FPS 从 MP4 / MOV 视频轨的时间信息读取；可变帧率标注为“平均”，无法识别的格式显示“FPS 未识别”。</p><p>原视频不转码、不改写；按相同秒数、原速同步，保留各自的帧率、分辨率、色彩和音轨。共同播放区间以最短视频为准。显示按比例适应窗口，放大后移动指针同步查看细节。“原始像素”指一个视频像素对应一个 CSS 显示像素。空格播放/暂停，方向键按 1/60 秒定位。</p></details>
+  </section>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $=id=>document.getElementById(id), slots=[null,null,null], panes=[], letters=['A','B','C'];
+  const stage=$('compare'), seek=$('seek'), play=$('play');
+  let cursor=0,duration=0,playing=false,busy=false,dragging=false,resumeAfterSeek=false;
+  let generation=0,operationAbort=null,pickerSlot=null,wipeMode=false,lastWipeCount=0,dragDepth=0;
+  let pictureFullscreen=false,nativeFullscreen=false,savedZoom='fit',fullscreenToolsTimer=null,fullscreenPointerDown=false,fullscreenPreviousFocus=null;
+  const active=()=>slots.filter(Boolean);
+  const master=()=>active()[0]?.video;
+  const allReady=()=>active().length>0&&active().every(e=>e.ready&&!e.error);
+  const format=t=>{const ms=Math.max(0,Math.round((t||0)*1000));return `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}.${String(ms%1000).padStart(3,'0')}`;};
+  function status(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error);}
+  function showTime(t=cursor){cursor=Math.min(Math.max(0,t||0),duration||0);const text=`${format(cursor)} / ${format(duration)}`;$('time').textContent=text;$('fullscreenTime').textContent=text;if(!dragging){seek.value=cursor;$('fullscreenSeek').value=cursor;}}
+  function updateControls(){const disabled=!allReady()||busy;['play','back','forward','restart','seek','fullscreenPlay','fullscreenSeek','fullscreenBack','fullscreenForward','fullscreenRestart'].forEach(id=>$(id).disabled=disabled);play.textContent=playing?'暂停':'同步播放';$('fullscreenPlay').textContent=play.textContent;}
+  function stop(text){
+    operationAbort?.abort();operationAbort=null;generation++;busy=false;playing=false;
+    active().forEach(e=>e.video.pause());updateControls();if(text)status(text);
+  }
+  function pause(){const time=master()?.currentTime??cursor;stop('已暂停 · 相同时间位置对比');showTime(time);}
+  async function at(v,t,signal){
+    if(signal.aborted)throw new DOMException('已取消','AbortError');
+    const target=Math.min(Math.max(0,t),Math.max(0,v.duration-.00001));
+    if(Math.abs(v.currentTime-target)<.00001&&!v.seeking)return;
+    await new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>done(new Error('视频定位超时，请重新定位或替换该视频。')),12000);
+      function done(error){clearTimeout(timer);v.removeEventListener('seeked',ok);v.removeEventListener('error',bad);signal.removeEventListener('abort',cancel);error?reject(error):resolve();}
+      function ok(){done();}function bad(){done(new Error('视频读取失败'));}function cancel(){done(new DOMException('已取消','AbortError'));}
+      v.addEventListener('seeked',ok,{once:true});v.addEventListener('error',bad,{once:true});signal.addEventListener('abort',cancel,{once:true});
+      try{v.currentTime=target;}catch(error){done(error);}
+    });
+  }
+  async function position(t,resume=false){
+    if(!allReady())return;
+    stop();const token=generation,controller=new AbortController();operationAbort=controller;busy=true;updateControls();
+    const target=Math.min(Math.max(0,t),duration),group=active();
+    try{
+      await Promise.all(group.map(e=>at(e.video,target,controller.signal)));
+      if(token!==generation)return;busy=false;showTime(target);status(`已暂停 · ${group.length} 个视频同步定位`);updateControls();
+      if(resume)await start();
+    }catch(error){if(token===generation&&error.name!=='AbortError'){busy=false;status(error.message,true);updateControls();}}
+  }
+  async function start(){
+    if(!allReady()||busy)return;
+    if((master()?.currentTime||0)>=duration-.02)await position(0);
+    if(!allReady()||busy)return;
+    operationAbort?.abort();const controller=new AbortController(),token=++generation;operationAbort=controller;busy=true;updateControls();
+    const group=active(),time=master().currentTime;
+    try{
+      await Promise.all(group.map(e=>at(e.video,time,controller.signal)));
+      if(token!==generation)return;
+      await Promise.all(group.map(e=>e.video.play()));
+      if(token!==generation)return;
+      playing=true;group.forEach(e=>e.lastCorrection=performance.now());status(`${group.length} 个原视频原速同步播放 · 共同区间 ${duration.toFixed(3)} 秒`);
+    }catch(error){if(token===generation){stop();if(error.name!=='AbortError')status('播放未能开始：'+error.message,true);}}
+    finally{if(token===generation){busy=false;updateControls();}}
+  }
+  async function readSourceFrameRate(file){
+    // Read only container metadata; skip media payload and never decode or alter frames.
+    async function bytes(offset,length){
+      if(offset<0||offset+length>file.size)throw new Error('Invalid video metadata range');
+      return new DataView(await file.slice(offset,offset+length).arrayBuffer());
+    }
+    async function* boxes(start,end){
+      let offset=start,visited=0;
+      while(offset+8<=end&&visited++<100000){
+        const h=await bytes(offset,Math.min(16,end-offset));let size=h.getUint32(0),header=8;
+        const type=String.fromCharCode(h.getUint8(4),h.getUint8(5),h.getUint8(6),h.getUint8(7));
+        if(size===1){if(h.byteLength<16)throw new Error('Invalid extended box');size=Number(h.getBigUint64(8));header=16;}
+        else if(size===0)size=end-offset;
+        if(!Number.isSafeInteger(size)||size<header||offset+size>end)throw new Error('Invalid video box');
+        yield {type,body:offset+header,end:offset+size};offset+=size;
+      }
+    }
+    async function find(start,end,type){for await(const box of boxes(start,end))if(box.type===type)return box;return null;}
+    try{
+      const moov=await find(0,file.size,'moov');if(!moov)return null;
+      for await(const track of boxes(moov.body,moov.end)){
+        if(track.type!=='trak')continue;
+        const media=await find(track.body,track.end,'mdia');if(!media)continue;
+        const handler=await find(media.body,media.end,'hdlr');if(!handler||handler.end-handler.body<12)continue;
+        const h=await bytes(handler.body,12);
+        if(h.getUint32(8)!==0x76696465)continue; // vide; ignore audio sample timing.
+        const mdhd=await find(media.body,media.end,'mdhd');if(!mdhd||mdhd.end-mdhd.body<16)continue;
+        const version=(await bytes(mdhd.body,1)).getUint8(0),scaleOffset=version===1?20:version===0?12:-1;
+        if(scaleOffset<0||mdhd.body+scaleOffset+4>mdhd.end)continue;
+        const timescale=(await bytes(mdhd.body+scaleOffset,4)).getUint32(0);if(!timescale)continue;
+        const minf=await find(media.body,media.end,'minf');if(!minf)continue;
+        const table=await find(minf.body,minf.end,'stbl');if(!table)continue;
+        const timing=await find(table.body,table.end,'stts');if(!timing||timing.end-timing.body<8)continue;
+        const count=(await bytes(timing.body+4,4)).getUint32(0);
+        if(!count||count>Math.floor((timing.end-timing.body-8)/8))continue;
+        let samples=0n,ticks=0n,firstDelta=null,variable=false;
+        for(let i=0;i<count;i+=4096){
+          const amount=Math.min(4096,count-i),data=await bytes(timing.body+8+i*8,amount*8);
+          for(let j=0;j<amount;j++){
+            const n=data.getUint32(j*8),delta=data.getUint32(j*8+4);if(!n)continue;if(!delta)return null;
+            if(firstDelta===null)firstDelta=delta;else if(delta!==firstDelta)variable=true;
+            samples+=BigInt(n);ticks+=BigInt(n)*BigInt(delta);
+          }
+        }
+        if(samples&&ticks){const fps=Number(samples)*timescale/Number(ticks);if(Number.isFinite(fps)&&fps>0)return {fps,variable};}
+      }
+    }catch{ /* Unsupported or incomplete metadata is shown explicitly in the UI. */ }
+    return null;
+  }
+  function frameRateLabel(e){return e.fps?`${Number(e.fps.toFixed(3))} fps${e.variableFps?'（平均）':''}`:e.fpsReading?'FPS 读取中…':'FPS 未识别';}
+  function renderDetails(slot){
+    const e=slots[slot],p=panes[slot];
+    p.name.textContent=e?`${letters[slot]} · ${e.name}`:`${letters[slot]} · 待添加`;p.name.title=e?.name||'';p.actions.hidden=!e;
+    p.details.textContent=!e?'最多三个视频':e.error?'格式无法播放，请替换或移除':e.ready?`${e.video.videoWidth} × ${e.video.videoHeight} · ${frameRateLabel(e)} · ${e.video.duration.toFixed(3)} s`:'正在读取…';
+  }
+  function toggle(){playing?pause():start();}
+  function audioChanged(){$('fullscreenAudio').value=$('audio').value;active().forEach(e=>e.video.muted=$('audio').value!==String(e.slot));}
+  function refreshAudio(){
+    const previous=$('audio').value,group=active();$('audio').replaceChildren();
+    group.forEach(e=>{const option=document.createElement('option');option.value=e.slot;option.textContent=`${letters[e.slot]} · ${e.name}`;$('audio').append(option);});
+    const mute=document.createElement('option');mute.value='none';mute.textContent='静音';$('audio').append(mute);
+    $('audio').value=previous==='none'?'none':group.some(e=>String(e.slot)===previous)?previous:group.length?String(group[0].slot):'none';
+    $('fullscreenAudio').replaceChildren(...Array.from($('audio').options,option=>option.cloneNode(true)));audioChanged();
+  }
+  function updateZoom(){
+    const mode=$('zoom').value;stage.classList.toggle('zoomed',mode!=='fit');
+    active().forEach(e=>{const v=e.video;const scale=mode==='native'?Math.max((v.videoWidth||1)/Math.max(1,v.clientWidth),(v.videoHeight||1)/Math.max(1,v.clientHeight)):mode==='fit'?1:Number(mode);v.style.setProperty('--scale',scale);});
+  }
+  function layout(){
+    const primary=active().find(e=>e.video.videoWidth),ratio=primary?primary.video.videoWidth/primary.video.videoHeight:1448/3840;
+    stage.style.setProperty('--aspect',String(ratio));
+    if(pictureFullscreen){
+      const count=Math.max(1,active().length),workspace=$('workspace');stage.style.setProperty('--fullscreen-count',count);
+      const width=workspace.clientWidth,height=workspace.clientHeight;
+      const desired=height*ratio*(wipeMode?1:count);stage.style.width=Math.min(width,desired)+'px';updateZoom();return;
+    }
+    const app=$('app'),padding=parseFloat(getComputedStyle(app).paddingLeft)+parseFloat(getComputedStyle(app).paddingRight);
+    const availableWidth=Math.max(100,app.clientWidth-padding),gap=parseFloat(getComputedStyle(stage).columnGap)||16;
+    const below=$('controls').offsetHeight+$('wipeControls').offsetHeight+(wipeMode?0:90)+28;
+    const availableHeight=Math.max(180,window.innerHeight-$('workspace').getBoundingClientRect().top-below-12);
+    const desired=wipeMode?availableHeight*ratio:availableHeight*ratio*3+gap*2;
+    stage.style.width=Math.min(availableWidth,desired)+'px';updateZoom();
+  }
+  function updateWipe(){
+    const group=active(),count=group.length;wipeMode=wipeMode&&count>=2;
+    $('wipe').disabled=count<2;stage.classList.toggle('wipe',wipeMode);$('side').setAttribute('aria-pressed',String(!wipeMode));$('wipe').setAttribute('aria-pressed',String(wipeMode));
+    $('wipeControls').hidden=!wipeMode;$('wipeLegend').hidden=!wipeMode;$('splitTwoRow').hidden=count!==3;
+    if(count!==lastWipeCount){$('split').value=count===3?'33':'50';$('splitTwo').value='67';lastWipeCount=count;}
+    const first=Number($('split').value),second=Number($('splitTwo').value);
+    $('splitValue').textContent=first+'%';$('splitTwoValue').textContent=second+'%';
+    $('wipeLegend').replaceChildren();group.forEach(e=>{const label=document.createElement('span');label.textContent=`${letters[e.slot]} · ${e.name}`;label.title=e.name;$('wipeLegend').append(label);});
+    panes.forEach(p=>{p.figure.classList.remove('wipe-base','wipe-active');p.figure.style.clipPath='';});
+    group.forEach((e,i)=>{const figure=panes[e.slot].figure;figure.classList.add('wipe-active');if(i===0)figure.classList.add('wipe-base');if(wipeMode){const left=i===0?0:i===1?first:second;const right=i===count-1?0:100-(i===0?first:second);figure.style.clipPath=`inset(0 ${right}% 0 ${left}%)`;}});
+    document.querySelectorAll('.divider').forEach(d=>d.remove());
+    if(wipeMode){[first,...(count===3?[second]:[])].forEach(value=>{const line=document.createElement('div');line.className='divider';line.style.left=value+'%';stage.append(line);});}
+    layout();
+  }
+  function refresh(){
+    const group=active(),loaded=group.filter(e=>e.ready&&!e.error).length;
+    duration=allReady()?Math.min(...group.map(e=>e.video.duration)):0;seek.max=duration||0;$('fullscreenSeek').max=duration||0;
+    $('summary').textContent=`已添加 ${group.length}/3 个视频 · 原速同步 · 原文件不变`;
+    $('add').disabled=group.length>=3;$('add').textContent=group.length>=3?'已添加 3/3':'添加视频';
+    $('sourceList').replaceChildren();
+    slots.forEach((e,i)=>{
+      panes[i].figure.classList.toggle('empty-slot',!e);
+      renderDetails(i);
+      if(e){const source=document.createElement('div');source.textContent=`${letters[i]}：${e.sourceDescription}`;$('sourceList').append(source);}
+    });
+    refreshAudio();updateWipe();updateControls();
+    if(!group.length)status('点击“添加视频”或拖入本地文件，最多三个。');
+    else if(group.some(e=>e.error))status('有视频无法解码。请替换或移除后继续同步对比。',true);
+    else if(loaded!==group.length)status(`正在读取视频 ${loaded}/${group.length}…`);
+    else{showTime(Math.min(cursor,duration));status(`已就绪 · ${group.length} 个原视频 · 共同区间 ${duration.toFixed(3)} 秒`);}
+  }
+  function captureAndStop(){const time=master()?.currentTime;stop();if(Number.isFinite(time))cursor=time;}
+  function emptySlot(slot){
+    const p=panes[slot],button=document.createElement('button');button.type='button';button.className='empty';button.setAttribute('aria-label',`添加视频 ${letters[slot]}`);
+    const plus=document.createElement('strong');plus.textContent='+';const label=document.createElement('span');label.textContent=`添加视频 ${letters[slot]}`;const hint=document.createElement('small');hint.textContent='选择文件或拖入此处';button.append(plus,label,hint);button.addEventListener('click',()=>choose(slot));p.image.replaceChildren(button);
+  }
+  function dispose(slot){
+    const old=slots[slot];if(!old)return;slots[slot]=null;old.video.pause();old.video.removeAttribute('src');old.video.load();if(old.objectURL)URL.revokeObjectURL(old.objectURL);emptySlot(slot);
+  }
+  function remove(slot){captureAndStop();dispose(slot);refresh();if(allReady())position(cursor);}
+  function install(slot,source,name,{fps=null,file=null,description=null}={}){
+    captureAndStop();dispose(slot);const p=panes[slot],video=document.createElement('video');
+    video.id=['a','b','c'][slot];video.preload='auto';video.playsInline=true;video.muted=true;video.setAttribute('aria-label',`视频 ${letters[slot]}：${name}`);
+    const badge=document.createElement('span');badge.className='slot-id';badge.textContent=letters[slot];
+    const e={slot,video,name,fps,fpsReading:!!file,variableFps:false,ready:false,error:false,objectURL:file?source:null,lastCorrection:0,sourceDescription:description||(file?`${file.name} · 本机选择 · ${(file.size/1024/1024).toFixed(1)} MB`:source)};
+    slots[slot]=e;p.image.replaceChildren(video,badge);
+    if(file)readSourceFrameRate(file).then(info=>{if(slots[slot]!==e)return;e.fpsReading=false;if(info){e.fps=info.fps;e.variableFps=info.variable;}renderDetails(slot);layout();});
+    video.addEventListener('loadedmetadata',()=>{if(slots[slot]===e)layout();});
+    video.addEventListener('loadeddata',()=>{if(slots[slot]!==e)return;e.ready=Number.isFinite(video.duration)&&video.duration>0;if(!e.ready){e.error=true;}refresh();if(allReady())position(cursor);},{once:true});
+    video.addEventListener('error',()=>{
+      if(slots[slot]!==e)return;stop();e.error=true;e.ready=false;const error=document.createElement('div');error.className='video-error';error.textContent='浏览器无法播放此视频，请替换文件。';p.image.append(error);refresh();
+    },{once:true});
+    video.src=source;refresh();
+  }
+  function choose(slot=null){pickerSlot=slot;$('files').multiple=slot===null;$('files').value='';$('files').click();}
+  function addFiles(files,target=null){
+    const selected=Array.from(files);if(!selected.length)return;
+    if(target!==null){const f=selected[0];install(target,URL.createObjectURL(f),f.name,{file:f});return;}
+    const free=slots.map((e,i)=>e?null:i).filter(i=>i!==null);
+    if(!free.length){status('最多同时对比三个视频。请使用各视频下方的“替换”或“移除”。',true);return;}
+    selected.slice(0,free.length).forEach((f,i)=>install(free[i],URL.createObjectURL(f),f.name,{file:f}));
+    if(selected.length>free.length)status('最多添加三个视频，已读取可用位置内的文件。');
+  }
+  for(let slot=0;slot<3;slot++){
+    const figure=document.createElement('figure');figure.className='pane';figure.dataset.slot=slot;
+    const image=document.createElement('div');image.className='image';const caption=document.createElement('figcaption');const name=document.createElement('span');name.className='filename';
+    const details=document.createElement('div');details.className='details';const actions=document.createElement('div');actions.className='slot-actions';
+    const replace=document.createElement('button');replace.type='button';replace.textContent='替换';replace.setAttribute('aria-label',`替换视频 ${letters[slot]}`);replace.addEventListener('click',()=>choose(slot));
+    const removeButton=document.createElement('button');removeButton.type='button';removeButton.textContent='移除';removeButton.setAttribute('aria-label',`移除视频 ${letters[slot]}`);removeButton.addEventListener('click',()=>remove(slot));
+    actions.append(replace,removeButton);caption.append(name,details,actions);figure.append(image,caption);stage.append(figure);panes.push({figure,image,name,details,actions});emptySlot(slot);
+    image.addEventListener('pointermove',event=>{if($('zoom').value==='fit')return;const r=image.getBoundingClientRect();stage.style.setProperty('--pan-x',Math.max(0,Math.min(100,(event.clientX-r.left)/r.width*100))+'%');stage.style.setProperty('--pan-y',Math.max(0,Math.min(100,(event.clientY-r.top)/r.height*100))+'%');});
+  }
+  $('add').addEventListener('click',()=>choose());$('files').addEventListener('change',()=>{addFiles($('files').files,pickerSlot);$('files').value='';pickerSlot=null;});
+  play.addEventListener('click',toggle);$('restart').addEventListener('click',()=>position(0,playing));$('back').addEventListener('click',()=>position(cursor-1/60));$('forward').addEventListener('click',()=>position(cursor+1/60));
+  [seek,$('fullscreenSeek')].forEach(control=>{
+    control.addEventListener('input',()=>{if(!dragging){resumeAfterSeek=playing;stop();dragging=true;}const target=Number(control.value),text=`${format(target)} / ${format(duration)}`;$('time').textContent=text;$('fullscreenTime').textContent=text;seek.value=target;$('fullscreenSeek').value=target;showFullscreenTools();});
+    control.addEventListener('change',()=>{const target=Number(control.value);dragging=false;position(target,resumeAfterSeek);showFullscreenTools();});
+  });
+  $('audio').addEventListener('change',audioChanged);$('zoom').addEventListener('change',updateZoom);
+  $('fullscreenAudio').addEventListener('change',()=>{$('audio').value=$('fullscreenAudio').value;audioChanged();showFullscreenTools();});
+  $('loop').addEventListener('change',()=>$('fullscreenLoop').checked=$('loop').checked);
+  $('fullscreenLoop').addEventListener('change',()=>{$('loop').checked=$('fullscreenLoop').checked;showFullscreenTools();});
+  $('side').addEventListener('click',()=>{wipeMode=false;updateWipe();});$('wipe').addEventListener('click',()=>{wipeMode=true;updateWipe();});
+  $('split').addEventListener('input',()=>{if(active().length===3&&Number($('split').value)>Number($('splitTwo').value))$('splitTwo').value=$('split').value;updateWipe();});
+  $('splitTwo').addEventListener('input',()=>{if(Number($('splitTwo').value)<Number($('split').value))$('split').value=$('splitTwo').value;updateWipe();});
+  function hideFullscreenTools(){
+    if(!pictureFullscreen)return;
+    if(dragging||fullscreenPointerDown){fullscreenToolsTimer=setTimeout(hideFullscreenTools,300);return;}
+    const focused=document.activeElement;if(!$('workspace').contains(focused)||$('fullscreenTools').contains(focused))$('workspace').focus({preventScroll:true});
+    $('workspace').classList.remove('controls-visible');
+  }
+  function showFullscreenTools(){
+    if(!pictureFullscreen)return;$('workspace').classList.add('controls-visible');clearTimeout(fullscreenToolsTimer);
+    fullscreenToolsTimer=setTimeout(hideFullscreenTools,2000);
+  }
+  function finishPictureFullscreen(){
+    if(!pictureFullscreen)return;pictureFullscreen=false;nativeFullscreen=false;fullscreenPointerDown=false;clearTimeout(fullscreenToolsTimer);
+    $('workspace').classList.remove('picture-fullscreen','controls-visible');document.body.classList.remove('picture-fullscreen-open');
+    ['header','controls','wipeControls'].forEach(id=>$(id).inert=false);
+    if(fullscreenPreviousFocus?.isConnected)fullscreenPreviousFocus.focus({preventScroll:true});
+    $('zoom').value=savedZoom;$('fullscreen').textContent='全屏';layout();requestAnimationFrame(layout);
+  }
+  async function leavePictureFullscreen(){
+    if(document.fullscreenElement===$('workspace')){try{await document.exitFullscreen();}finally{if(!document.fullscreenElement)finishPictureFullscreen();}}
+    else finishPictureFullscreen();
+  }
+  async function enterPictureFullscreen(){
+    if(!active().length){status('请先添加视频。');return;}
+    savedZoom=$('zoom').value;$('zoom').value='fit';pictureFullscreen=true;fullscreenPreviousFocus=document.activeElement;
+    $('workspace').classList.add('picture-fullscreen');document.body.classList.add('picture-fullscreen-open');$('fullscreen').textContent='退出全屏';
+    ['header','controls','wipeControls'].forEach(id=>$(id).inert=true);$('workspace').focus({preventScroll:true});showFullscreenTools();layout();
+    try{await $('workspace').requestFullscreen({navigationUI:'hide'});}
+    catch{status('已将视频画面放大到当前窗口最大。');}
+    if(pictureFullscreen)$('workspace').focus({preventScroll:true});layout();
+  }
+  $('fullscreen').addEventListener('click',()=>pictureFullscreen?leavePictureFullscreen():enterPictureFullscreen());
+  $('exitFullscreen').addEventListener('click',leavePictureFullscreen);$('fullscreenPlay').addEventListener('click',toggle);
+  $('fullscreenBack').addEventListener('click',()=>position(cursor-1/60));$('fullscreenForward').addEventListener('click',()=>position(cursor+1/60));$('fullscreenRestart').addEventListener('click',()=>position(0,playing));
+  $('fullscreenTools').addEventListener('pointerdown',()=>{fullscreenPointerDown=true;showFullscreenTools();});
+  document.addEventListener('pointerup',()=>{if(fullscreenPointerDown){fullscreenPointerDown=false;showFullscreenTools();}});
+  document.addEventListener('pointercancel',()=>{fullscreenPointerDown=false;showFullscreenTools();});
+  $('workspace').addEventListener('pointermove',showFullscreenTools);$('workspace').addEventListener('pointerdown',showFullscreenTools);
+  document.addEventListener('fullscreenchange',()=>{if(document.fullscreenElement===$('workspace')){nativeFullscreen=true;layout();}else if(nativeFullscreen)finishPictureFullscreen();});
+  document.addEventListener('keydown',event=>{if(event.code==='Escape'&&pictureFullscreen){event.preventDefault();leavePictureFullscreen();return;}if(pictureFullscreen)showFullscreenTools();if(/INPUT|SELECT|BUTTON/.test(event.target.tagName)||!allReady())return;if(event.code==='Space'){event.preventDefault();toggle();}if(event.code==='ArrowLeft'||event.code==='ArrowRight'){event.preventDefault();position(cursor+(event.code==='ArrowRight'?1:-1)/60);}});
+  $('workspace').addEventListener('dragenter',event=>{if(!Array.from(event.dataTransfer.types).includes('Files'))return;event.preventDefault();dragDepth++;$('dropHint').hidden=false;});
+  $('workspace').addEventListener('dragover',event=>{if(Array.from(event.dataTransfer.types).includes('Files'))event.preventDefault();});
+  $('workspace').addEventListener('dragleave',event=>{event.preventDefault();if(--dragDepth<=0){dragDepth=0;$('dropHint').hidden=true;}});
+  $('workspace').addEventListener('drop',event=>{event.preventDefault();dragDepth=0;$('dropHint').hidden=true;const files=event.dataTransfer.files,pane=event.target.closest('.pane');addFiles(files,files.length===1&&pane?Number(pane.dataset.slot):null);});
+  window.addEventListener('resize',layout);$('controls').querySelector('details').addEventListener('toggle',layout);new ResizeObserver(layout).observe($('header'));
+  function tick(now){
+    if(playing&&!busy&&!dragging&&allReady()){
+      const group=active(),m=group[0].video;showTime(m.currentTime);
+      if(m.currentTime>=duration-.005||group.some(e=>e.video.ended)){stop();if($('loop').checked)position(0,true);else position(duration);}
+      else group.slice(1).forEach(e=>{if(!m.seeking&&!e.video.seeking&&Math.abs(m.currentTime-e.video.currentTime)>.1&&now-e.lastCorrection>1200){e.lastCorrection=now;e.video.currentTime=m.currentTime;}});
+    }
+    requestAnimationFrame(tick);
+  }
+  window.addEventListener('beforeunload',()=>active().forEach(e=>{if(e.objectURL)URL.revokeObjectURL(e.objectURL);}));
+  refresh();showTime(0);requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
